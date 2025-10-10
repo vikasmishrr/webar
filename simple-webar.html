@@ -100,7 +100,7 @@
 
     <video id="video" autoplay muted playsinline></video>
     <div id="overlay">
-        <video id="ar-video" autoplay muted loop playsinline>
+        <video id="ar-video" autoplay loop playsinline>
             <source src="video.mp4" type="video/mp4">
         </video>
     </div>
@@ -205,6 +205,23 @@
         document.addEventListener('DOMContentLoaded', () => {
             new SimpleWebAR();
         });
+
+        // Enable audio on first user interaction
+        function enableAudio() {
+            const arVideo = document.getElementById('ar-video');
+            if (arVideo) {
+                arVideo.muted = false;
+                arVideo.play().catch(console.error);
+            }
+            // Remove event listeners after first interaction
+            document.removeEventListener('click', enableAudio);
+            document.removeEventListener('touchstart', enableAudio);
+        }
+
+        // Add event listeners for user interaction
+        document.addEventListener('click', enableAudio);
+        document.addEventListener('touchstart', enableAudio);
     </script>
 </body>
 </html>
+

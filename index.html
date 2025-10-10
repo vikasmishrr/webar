@@ -285,7 +285,7 @@
                     const arVideo = document.createElement('video');
                     arVideo.src = 'video.mp4';
                     arVideo.loop = true;
-                    arVideo.muted = true;
+                    // arVideo.muted = true; // Removed to enable audio
                     arVideo.playsInline = true;
                     arVideo.autoplay = true;
                     arVideo.style.position = 'absolute';
@@ -339,6 +339,22 @@
         document.addEventListener('DOMContentLoaded', () => {
             new SimpleWebAR();
         });
+
+        // Enable audio on first user interaction
+        function enableAudio() {
+            const arVideo = document.querySelector('video[src="video.mp4"]');
+            if (arVideo) {
+                arVideo.muted = false;
+                arVideo.play().catch(console.error);
+            }
+            // Remove event listeners after first interaction
+            document.removeEventListener('click', enableAudio);
+            document.removeEventListener('touchstart', enableAudio);
+        }
+
+        // Add event listeners for user interaction
+        document.addEventListener('click', enableAudio);
+        document.addEventListener('touchstart', enableAudio);
     </script>
 </body>
 </html>

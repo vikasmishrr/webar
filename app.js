@@ -69,6 +69,21 @@ class WebARVideoApp {
             this.requestCameraPermission();
         });
 
+        // Enable audio on first user interaction
+        const enableAudio = () => {
+            if (this.videoElement) {
+                this.videoElement.muted = false;
+                this.videoElement.play().catch(console.error);
+            }
+            // Remove event listeners after first interaction
+            document.removeEventListener('click', enableAudio);
+            document.removeEventListener('touchstart', enableAudio);
+        };
+
+        // Add event listeners for user interaction to enable audio
+        document.addEventListener('click', enableAudio);
+        document.addEventListener('touchstart', enableAudio);
+
         // Handle visibility change (mobile optimization)
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
@@ -169,7 +184,7 @@ class WebARVideoApp {
             this.videoElement = document.createElement('video');
             this.videoElement.src = 'video.mp4';
             this.videoElement.loop = true;
-            this.videoElement.muted = true; // Required for autoplay
+            // this.videoElement.muted = true; // Removed to enable audio
             this.videoElement.playsInline = true; // Prevent fullscreen on mobile
             this.videoElement.crossOrigin = 'anonymous';
             
