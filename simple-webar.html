@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Simple WebAR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            overflow: hidden;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        #ar-video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 200px;
+            border: 2px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+            max-width: 90%;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <h2>Initializing WebAR...</h2>
+        <p>Please allow camera access</p>
+    </div>
+
+    <div class="error-message" id="errorMessage">
+        <div id="errorText">An error occurred. Please refresh the page.</div>
+    </div>
+
+    <video id="video" autoplay muted playsinline></video>
+    <div id="overlay">
+        <video id="ar-video" autoplay muted loop playsinline>
+            <source src="video.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <script>
+        class SimpleWebAR {
+            constructor() {
+                this.video = document.getElementById('video');
+                this.arVideo = document.getElementById('ar-video');
+                this.loading = document.getElementById('loading');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.errorText = document.getElementById('errorText');
+                
+                this.init();
+            }
+
+            async init() {
+                try {
+                    console.log('🚀 Starting Simple WebAR...');
+                    
+                    // Check for HTTPS
+                    if (!this.isSecureContext()) {
+                        this.showError('This app requires HTTPS to access the camera.');
+                        return;
+                    }
+
+                    // Request camera access
+                    await this.startCamera();
+                    
+                    // Start AR video
+                    await this.startARVideo();
+                    
+                    // Hide loading
+                    this.loading.classList.add('hidden');
+                    
+                    console.log('✅ Simple WebAR started successfully');
+                    
+                } catch (error) {
+                    console.error('❌ WebAR initialization failed:', error);
+                    this.showError('Failed to start AR experience. Please check camera permissions.');
+                }
+            }
+
+            async startCamera() {
+                try {
+                    console.log('📷 Starting camera...');
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    });
+                    
+                    this.video.srcObject = stream;
+                    
+                    console.log('✅ Camera started');
+                    
+                } catch (error) {
+                    console.error('❌ Camera failed:', error);
+                    throw new Error('Camera access denied or failed');
+                }
+            }
+
+            async startARVideo() {
+                try {
+                    console.log('🎥 Starting AR video...');
+                    
+                    // Wait for video to load
+                    await new Promise((resolve, reject) => {
+                        this.arVideo.addEventListener('loadeddata', resolve);
+                        this.arVideo.addEventListener('error', reject);
+                        this.arVideo.load();
+                    });
+                    
+                    // Play the video
+                    await this.arVideo.play();
+                    
+                    console.log('✅ AR video started');
+                    
+                } catch (error) {
+                    console.error('❌ AR video failed:', error);
+                    throw new Error('AR video failed to load');
+                }
+            }
+
+            showError(message) {
+                this.errorText.textContent = message;
+                this.errorMessage.classList.add('show');
+                this.loading.classList.add('hidden');
+            }
+
+            isSecureContext() {
+                return window.isSecureContext || 
+                       window.location.protocol === 'https:' || 
+                       window.location.hostname === 'localhost';
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new SimpleWebAR();
+        });
+    </script>
+</body>
+</html>

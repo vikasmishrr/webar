@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>WebAR Video Experience</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="webar-sdk/webar-sdk-v2.0.8.min.js" as="script">
+    <link rel="preload" href="video.mp4" as="video">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            overflow: hidden;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-content {
+            text-align: center;
+            color: white;
+            padding: 20px;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .loading-subtext {
+            font-size: 14px;
+            opacity: 0.8;
+            max-width: 300px;
+            line-height: 1.4;
+        }
+
+        /* AR Canvas */
+        #ar-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Error message */
+        .error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1001;
+            max-width: 90%;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        /* Permission prompt styling */
+        .permission-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1002;
+            display: none;
+        }
+
+        .permission-prompt.show {
+            display: block;
+        }
+
+        .permission-button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .permission-button:hover {
+            background: #0056CC;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .loading-text {
+                font-size: 16px;
+            }
+            
+            .loading-subtext {
+                font-size: 13px;
+            }
+            
+            .permission-prompt {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+            }
+        }
+
+        /* Hide scrollbars */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        
+        body {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Initializing AR...</div>
+            <div class="loading-subtext">Please allow camera access to continue</div>
+        </div>
+    </div>
+
+    <!-- Permission prompt -->
+    <div class="permission-prompt" id="permissionPrompt">
+        <div>Camera access is required for AR experience</div>
+        <button class="permission-button" id="allowCameraBtn">Allow Camera</button>
+    </div>
+
+    <!-- Error message -->
+    <div class="error-message" id="errorMessage">
+        <div id="errorText">An error occurred. Please refresh the page.</div>
+    </div>
+
+    <!-- AR Canvas will be created by JavaScript -->
+    <canvas id="ar-canvas"></canvas>
+
+    <!-- Scripts -->
+    <script>
+        class SimpleWebAR {
+            constructor() {
+                this.video = document.getElementById('video');
+                this.arVideo = document.getElementById('ar-video');
+                this.loading = document.getElementById('loadingOverlay');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.errorText = document.getElementById('errorText');
+                
+                this.init();
+            }
+
+            async init() {
+                try {
+                    console.log('🚀 Starting Simple WebAR...');
+                    
+                    // Check for HTTPS
+                    if (!this.isSecureContext()) {
+                        this.showError('This app requires HTTPS to access the camera.');
+                        return;
+                    }
+
+                    // Request camera access
+                    await this.startCamera();
+                    
+                    // Start AR video
+                    await this.startARVideo();
+                    
+                    // Hide loading
+                    this.hideLoading();
+                    
+                    console.log('✅ Simple WebAR started successfully');
+                    
+                } catch (error) {
+                    console.error('❌ WebAR initialization failed:', error);
+                    this.showError('Failed to start AR experience. Please check camera permissions.');
+                }
+            }
+
+            async startCamera() {
+                try {
+                    console.log('📷 Starting camera...');
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    });
+                    
+                    // Create video element for camera
+                    const cameraVideo = document.createElement('video');
+                    cameraVideo.srcObject = stream;
+                    cameraVideo.autoplay = true;
+                    cameraVideo.muted = true;
+                    cameraVideo.playsInline = true;
+                    cameraVideo.style.position = 'absolute';
+                    cameraVideo.style.top = '0';
+                    cameraVideo.style.left = '0';
+                    cameraVideo.style.width = '100%';
+                    cameraVideo.style.height = '100%';
+                    cameraVideo.style.objectFit = 'cover';
+                    cameraVideo.style.zIndex = '1';
+                    
+                    document.body.appendChild(cameraVideo);
+                    
+                    console.log('✅ Camera started');
+                    
+                } catch (error) {
+                    console.error('❌ Camera failed:', error);
+                    throw new Error('Camera access denied or failed');
+                }
+            }
+
+            async startARVideo() {
+                try {
+                    console.log('🎥 Starting AR video...');
+                    
+                    // Create AR video element
+                    const arVideo = document.createElement('video');
+                    arVideo.src = 'video.mp4';
+                    arVideo.loop = true;
+                    arVideo.muted = true;
+                    arVideo.playsInline = true;
+                    arVideo.autoplay = true;
+                    arVideo.style.position = 'absolute';
+                    arVideo.style.top = '50%';
+                    arVideo.style.left = '50%';
+                    arVideo.style.transform = 'translate(-50%, -50%)';
+                    arVideo.style.width = '300px';
+                    arVideo.style.height = '200px';
+                    arVideo.style.border = '2px solid #fff';
+                    arVideo.style.borderRadius = '10px';
+                    arVideo.style.boxShadow = '0 0 20px rgba(255, 255, 255, 0.3)';
+                    arVideo.style.zIndex = '2';
+                    
+                    document.body.appendChild(arVideo);
+                    
+                    // Wait for video to load and play
+                    await new Promise((resolve, reject) => {
+                        arVideo.addEventListener('loadeddata', resolve);
+                        arVideo.addEventListener('error', reject);
+                        arVideo.load();
+                    });
+                    
+                    await arVideo.play();
+                    
+                    console.log('✅ AR video started');
+                    
+                } catch (error) {
+                    console.error('❌ AR video failed:', error);
+                    throw new Error('AR video failed to load');
+                }
+            }
+
+            hideLoading() {
+                this.loading.classList.add('hidden');
+            }
+
+            showError(message) {
+                this.errorText.textContent = message;
+                this.errorMessage.classList.add('show');
+                this.hideLoading();
+            }
+
+            isSecureContext() {
+                return window.isSecureContext || 
+                       window.location.protocol === 'https:' || 
+                       window.location.hostname === 'localhost';
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new SimpleWebAR();
+        });
+    </script>
+</body>
+</html>
